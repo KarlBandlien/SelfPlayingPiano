@@ -9,59 +9,54 @@ from tkinter import messagebox
 
 path_directory_var = ""
 
-# MIDI to CSV conversion function
-def midi_to_csv(midi_file, output_csv):
+def midi_to_csv(midi_file, output_csv, fps=30):
     try:
         mid = mido.MidiFile(midi_file)
         notes = {}
         results = []
-
-        # Go through each message in the MIDI file
+        bpm = None
+        ticks_per_beat = mid.ticks_per_beat
         current_time = 0
         for track in mid.tracks:
             for msg in track:
-                current_time += msg.time  # Update time
-
-                if msg.type == 'note_on':  # When the note starts
-                    notes[msg.note] = {
-                        'channel': msg.channel,
-                        'note_on': current_time,
-                        'velocity': msg.velocity / 127  # Normalize velocity
-                    }
-                elif msg.type == 'note_off':  # When the note ends
+                if msg.type == 'set_tempo':
+                    microseconds_per_beat = msg.tempo
+                    bpm = 60000000 / microseconds_per_beat
+                current_time += msg.time
+                if msg.type == 'note_on':
+                    if msg.velocity > 0:
+                        notes[msg.note] = {
+                            'channel': msg.channel,
+                            'note_on': current_time,
+                            'velocity': msg.velocity / 127
+                        }
+                elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                     if msg.note in notes:
-                        # Prepare the row: [channel, note, normalized velocity, note_on time, note_off time]
-                        results.append([
-                            notes[msg.note]['channel'],
-                            msg.note,
-                            notes[msg.note]['velocity'],
-                            notes[msg.note]['note_on'],
-                            current_time
-                        ])
-                        del notes[msg.note]  # Remove the note from the active notes
-
-        # Write the results to CSV
+                        note_on_time = notes[msg.note]['note_on']
+                        note_off_time = current_time
+                        note_on_in_seconds = (note_on_time / ticks_per_beat) * (60 / bpm)
+                        note_off_in_seconds = (note_off_time / ticks_per_beat) * (60 / bpm)
+                        note_on_in_frames = note_on_in_seconds * fps
+                        note_off_in_frames = note_off_in_seconds * fps
+                        row = f"[{notes[msg.note]['channel']}, {msg.note}, {notes[msg.note]['velocity']}, {note_on_in_frames:.0f}, {note_off_in_frames:.0f}]"
+                        results.append(row)
+                        del notes[msg.note]
         with open(output_csv, 'w', newline='') as csvfile:
-            csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(['channel', 'note', 'velocity', 'note_on', 'note_off'])
-            for row in results:
-                csvwriter.writerow(row)
-        
-        return True
+            csvfile.write(f"[{', '.join(results)}]")
+        return bpm
     except Exception as e:
         print(f"Error during MIDI to CSV conversion: {e}")
-        return False
-    
-    # Function to handle the conversion process and create CSV
+        return None
+
 def make_csv():
-    if os.path.isfile(path_directory_var):  # Check if it's a valid file
+    if os.path.isfile(path_directory_var):
         midi_file = path_directory_var
         output_csv = filedialog.asksaveasfilename(
             title="Save CSV File",
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        if output_csv:  # If user selected a valid location to save the CSV
+        if output_csv:
             success = midi_to_csv(midi_file, output_csv)
             if success:
                 messagebox.showinfo("Success", f"CSV file saved as {output_csv}")
@@ -69,7 +64,6 @@ def make_csv():
                 messagebox.showerror("Error", "An error occurred during conversion.")
     else:
         messagebox.showerror("Error", "No valid file selected. Please select a MIDI file.")
-
 
 def validate_numeric_input(new_value):
     try:
@@ -85,7 +79,6 @@ def update_graph():
         decay_value = float(entries[2].get()) if entries[2].get() else 1.0
         sustain_value = float(entries[3].get()) if entries[3].get() else 0.7
         release_value = float(entries[4].get()) if entries[4].get() else 1.0
-
         attack_value /= 2
         attack_x_end = attack_value
         decay_duration = decay_value / 4
@@ -95,7 +88,6 @@ def update_graph():
         sustain_end_x = sustain_start_x + 1.5
         release_start_x = sustain_end_x
         release_end_x = release_start_x + (release_value / 2)
-
         ax.clear()
         ax.plot([0, attack_x_end], [0, 1.0], color="#E57373", linewidth=3, label="Attack Line")
         ax.plot([decay_start_x, decay_end_x], [1.0, sustain_value], color="#FFB74D", linewidth=3, label="Decay Line")
@@ -130,13 +122,12 @@ def add_file():
         filetypes=[("All Files", "*.*"), ("Text Files", "*.txt"), ("MIDI Files", "*.midi")]
     )
     if file_path:
-        path_directory_var = file_path  # Update the global variable
+        path_directory_var = file_path
         print(path_directory_var)
         path_directory.config(text=f"File Selected: {file_path}", fg="#4CAF50", wraplength=500)
     else:
         path_directory.config(text="No File Selected", fg="#F44336")
         path_directory_var = "No file"
-
 
 root = tk.Tk()
 root.title("MIDI To KeyFrames")
@@ -189,7 +180,7 @@ bottom_bottom_frame = tk.Frame(bottom_frame, bg="#1a1a1a")
 bottom_bottom_frame.place(relwidth=0.5, relheight=0.5, relx=0.0, rely=0.5)
 
 left_box = tk.Frame(bottom_frame, bg="#E3F2FD", relief="ridge", bd=3)
-left_box.place(relwidth=0.5, relheight=0.5, relx=0.0, rely=0.0)
+left_box.place(relwidth=0.5, relx=0.0, relheight=0.5)
 
 example_button = tk.Button(
     left_box,
