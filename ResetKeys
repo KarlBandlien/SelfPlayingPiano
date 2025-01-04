@@ -1,0 +1,118 @@
+import bpy
+
+start_key_number = 21
+
+marbles_collection = bpy.data.collections.get("Marbles")
+
+for Marbles in marbles_collection.objects:
+     MarbleMat = bpy.data.materials["MarbleColor"]
+     Marbles.active_material = MarbleMat
+     
+     Marbles.location.x = 0
+     Marbles.location.y = 0
+     Marbles.location.z = 8
+     
+     MarbleMat.node_tree.nodes["Radioactive Uranium Glow"].inputs[0].default_value = (1, 0.593062, 0.00816613, 10)
+     MarbleMat.node_tree.nodes["Radioactive Uranium Glow"].inputs[11].default_value = 0.7
+     
+
+# Iterate over the keys from 21 to 108
+for key_number in range(21, 109):
+    obj_name = str(key_number)
+    obj = bpy.data.objects.get(obj_name)
+    
+    
+    if obj:
+        if key_number == 22 or key_number == 25 or key_number == 27 or key_number == 30 or key_number == 32 or key_number == 34 or key_number == 37 or key_number == 39 or key_number == 42 or key_number == 44 or key_number == 46 or key_number == 49 or key_number == 51 or key_number == 54 or key_number == 56 or key_number == 58 or key_number == 61 or key_number == 63 or key_number == 66 or key_number == 68 or key_number == 70 or key_number == 73 or key_number == 75 or key_number == 78 or key_number == 80 or key_number == 82 or key_number == 85 or key_number == 87 or key_number == 90 or key_number == 92 or key_number == 94 or key_number == 97 or key_number == 99 or key_number == 102 or key_number == 104 or key_number == 106:
+            
+            objmaterial = bpy.data.materials.get("glow" + obj_name)
+            
+            obj.active_material = objmaterial
+            
+            
+            obj.location.z = 1.48979
+            materialnow = obj.active_material
+            
+            
+            
+            material_name = "glow" + str(obj.name)
+            glowingmat = bpy.data.materials.get(material_name) or bpy.data.materials.new(name=material_name)
+
+            if not glowingmat.use_nodes:
+                glowingmat.use_nodes = True
+                
+            obj.active_material = glowingmat
+            glowingMatNodes = glowingmat.node_tree.nodes
+            glowingMatLinks = glowingmat.node_tree.links
+
+            def get_node(nodes, node_type):
+                for node in nodes:
+                    if node.type == node_type:
+                        return node
+                return nodes.new(type=node_type)
+
+            # Delete emission shader node if it exists
+            for node in glowingMatNodes:
+                if node.type == 'EMISSION':
+                    glowingMatNodes.remove(node)
+
+            principled_bsdf_node = get_node(glowingMatNodes, 'BSDF_PRINCIPLED')
+            material_output_node = get_node(glowingMatNodes, 'OUTPUT_MATERIAL')
+
+            if not any(link.to_node == material_output_node and link.from_node == principled_bsdf_node for link in glowingMatLinks):
+                glowingMatLinks.new(principled_bsdf_node.outputs['BSDF'], material_output_node.inputs['Surface'])
+            
+            objkey = "glow" + str(obj.name)
+            
+            bpy.data.materials[objkey].node_tree.nodes["Principled BSDF"].inputs[26].default_value = (1, 0.0891875, 0, 1)
+            bpy.data.materials[objkey].node_tree.nodes["Principled BSDF"].inputs[2].default_value = 0.8
+            bpy.data.materials[objkey].node_tree.nodes["Principled BSDF"].inputs[1].default_value = 0
+            bpy.data.materials[objkey].node_tree.nodes["Principled BSDF"].inputs[0].default_value = (0, 0, 0, 1)
+            bpy.data.materials[objkey].node_tree.nodes["Principled BSDF"].inputs[28].default_value = 0
+                    
+                    
+        
+        else:
+            
+            obj.location.z = 1.4614 
+           
+           
+           
+            material_name = "glow" + str(obj.name)
+            glowingmat = bpy.data.materials.get(material_name) or bpy.data.materials.new(name=material_name)
+
+            if not glowingmat.use_nodes:
+                glowingmat.use_nodes = True
+                
+            obj.active_material = glowingmat
+            glowingMatNodes = glowingmat.node_tree.nodes
+            glowingMatLinks = glowingmat.node_tree.links
+
+            def get_node(nodes, node_type):
+                for node in nodes:
+                    if node.type == node_type:
+                        return node
+                return nodes.new(type=node_type)
+
+            
+            for node in glowingMatNodes:
+                if node.type == 'EMISSION':
+                    glowingMatNodes.remove(node)
+
+            principled_bsdf_node = get_node(glowingMatNodes, 'BSDF_PRINCIPLED')
+            material_output_node = get_node(glowingMatNodes, 'OUTPUT_MATERIAL')
+
+            if not any(link.to_node == material_output_node and link.from_node == principled_bsdf_node for link in glowingMatLinks):
+                glowingMatLinks.new(principled_bsdf_node.outputs['BSDF'], material_output_node.inputs['Surface'])
+            
+            bpy.data.materials["glow" + str(obj.name)].node_tree.nodes["Principled BSDF"].inputs[26].default_value = (1, 0.463075, 0, 1)    
+            bpy.data.materials["glow" + str(obj.name)].node_tree.nodes["Principled BSDF"].inputs[2].default_value = .7
+            bpy.data.materials["glow" + str(obj.name)].node_tree.nodes["Principled BSDF"].inputs[1].default_value = .5
+            bpy.data.materials["glow" + str(obj.name)].node_tree.nodes["Principled BSDF"].inputs[0].default_value = (1, 1, 1, 1)
+            bpy.data.materials["glow" + str(obj.name)].node_tree.nodes["Principled BSDF"].inputs[28].default_value = 0
+            
+
+    else:
+        print(f"Object {obj_name} not found")
+
+print("Materials assigned successfully.")
