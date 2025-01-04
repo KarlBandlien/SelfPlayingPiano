@@ -4,12 +4,94 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import mido
-import csv
+import re
 from tkinter import messagebox
 
 path_directory_var = ""
 
-def midi_to_csv(midi_file, output_csv, fps=30):
+
+file_name = "KeyframeScriptOutline.py"
+
+def export_modified_script(modified_contents):
+    try:
+        # Open a save file dialog to select the location and name for the exported file
+        exported_file = filedialog.asksaveasfilename(
+            title="Export Modified Script",
+            defaultextension=".py",
+            filetypes=[("Python files", "*.py"), ("All files", "*.*")]
+        )
+
+        if exported_file:
+            # Write the modified contents to the new file
+            with open(exported_file, "w") as file:
+                file.write(modified_contents)
+
+            # Show a success message
+            messagebox.showinfo("Success", f"Modified script exported to {exported_file}")
+        else:
+            messagebox.showwarning("Warning", "Export canceled. No file selected.")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred while exporting the script: {e}")
+
+
+
+
+def modified_script(csv_data, file_name, entries):
+    try:
+        # Clean up the CSV data to remove single quotes
+        clean_csv_data = re.sub(r"'", "", str(csv_data))  # Remove single quotes from the CSV data string
+        
+        # Open the file and read its content
+        with open(file_name, "r") as file:
+            file_contents = file.read()
+
+        # Update the variables based on the input from the form
+        attack_value = float(entries[1].get()) if entries[1].get() else 1.0
+        decay_value = float(entries[2].get()) if entries[2].get() else 1.0
+        sustain_value = float(entries[3].get()) if entries[3].get() else 0.7
+        release_value = float(entries[4].get()) if entries[4].get() else 1.0
+
+        # Apply the modifications
+        attack_value = attack_value * 5 
+        decay_value = decay_value * 5 
+        release_value = release_value * 2
+        sustain_value = sustain_value
+
+        # Use regular expressions to find and replace the values in the file contents
+        file_contents = re.sub(r'attack\s*=\s*\d*\.?\d*', f'attack = {attack_value}', file_contents)
+        file_contents = re.sub(r'decay\s*=\s*\d*\.?\d*', f'decay = {decay_value}', file_contents)
+        file_contents = re.sub(r'sustain_level\s*=\s*\d*\.?\d*', f'sustain_level = {sustain_value}', file_contents)
+        file_contents = re.sub(r'release\s*=\s*\d*\.?\d*', f'release = {release_value}', file_contents)
+
+        # Replace animation_list with cleaned CSV data
+        animation_list_str = f"animation_list = {clean_csv_data}"
+
+        # Use regular expressions to replace the animation_list in the file content
+        file_contents = re.sub(r'animation_list\s*=\s*\[[^\]]*\]', animation_list_str, file_contents)
+
+        # Call export function to save the modified script
+        export_modified_script(file_contents)
+
+    except Exception as e:
+        print(f"Error modifying script: {e}")
+
+
+
+
+ 
+    
+
+
+
+
+
+
+
+
+
+
+
+def midi_to_csv(midi_file, fps=30):
     try:
         mid = mido.MidiFile(midi_file)
         notes = {}
@@ -41,29 +123,17 @@ def midi_to_csv(midi_file, output_csv, fps=30):
                         row = f"[{notes[msg.note]['channel']}, {msg.note}, {notes[msg.note]['velocity']}, {note_on_in_frames:.0f}, {note_off_in_frames:.0f}]"
                         results.append(row)
                         del notes[msg.note]
-        with open(output_csv, 'w', newline='') as csvfile:
-            csvfile.write(f"[{', '.join(results)}]")
+
+        # Call the modified script with the generated CSV data
+        modified_script(results, file_name, entries)
+        
         return bpm
     except Exception as e:
         print(f"Error during MIDI to CSV conversion: {e}")
         return None
 
-def make_csv():
-    if os.path.isfile(path_directory_var):
-        midi_file = path_directory_var
-        output_csv = filedialog.asksaveasfilename(
-            title="Save CSV File",
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        if output_csv:
-            success = midi_to_csv(midi_file, output_csv)
-            if success:
-                messagebox.showinfo("Success", f"CSV file saved as {output_csv}")
-            else:
-                messagebox.showerror("Error", "An error occurred during conversion.")
-    else:
-        messagebox.showerror("Error", "No valid file selected. Please select a MIDI file.")
+
+
 
 def validate_numeric_input(new_value):
     try:
@@ -176,8 +246,9 @@ bottom_frame.pack(pady=5, padx=10, fill="both", expand=True)
 side_frame = tk.Frame(bottom_frame, bg="#E3F2FD", relief="ridge", bd=3)
 side_frame.place(relwidth=0.5, relheight=0.5, relx=0.0)
 
-bottom_bottom_frame = tk.Frame(bottom_frame, bg="#1a1a1a")
+bottom_bottom_frame = tk.Frame(bottom_frame, bg="#E3F2FD")  # Changed color to match the theme
 bottom_bottom_frame.place(relwidth=0.5, relheight=0.5, relx=0.0, rely=0.5)
+
 
 left_box = tk.Frame(bottom_frame, bg="#E3F2FD", relief="ridge", bd=3)
 left_box.place(relwidth=0.5, relx=0.0, relheight=0.5)
@@ -206,15 +277,16 @@ path_directory.pack(pady=5, expand=True)
 
 new_button = tk.Button(
     bottom_bottom_frame,
-    text="New Button",
+    text="Export file",
     font=("Helvetica", 12, "bold"),
     bg="#FF7043",
     fg="white",
     relief="raised",
     borderwidth=2,
-    command=make_csv
+    command=lambda: midi_to_csv(path_directory_var)
 )
 new_button.pack(pady=10, expand=True)
+
 
 graph_frame = tk.Frame(bottom_frame, bg="#FAFAFA")
 graph_frame.place(relwidth=0.5, relheight=1.0, relx=0.5)
