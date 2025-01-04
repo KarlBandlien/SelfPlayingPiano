@@ -1,8 +1,74 @@
 import tkinter as tk
-from tkinter import filedialog
-from tkinter import ttk
+from tkinter import filedialog, ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import os
+import mido
+import csv
+from tkinter import messagebox
+
+path_directory_var = ""
+
+# MIDI to CSV conversion function
+def midi_to_csv(midi_file, output_csv):
+    try:
+        mid = mido.MidiFile(midi_file)
+        notes = {}
+        results = []
+
+        # Go through each message in the MIDI file
+        current_time = 0
+        for track in mid.tracks:
+            for msg in track:
+                current_time += msg.time  # Update time
+
+                if msg.type == 'note_on':  # When the note starts
+                    notes[msg.note] = {
+                        'channel': msg.channel,
+                        'note_on': current_time,
+                        'velocity': msg.velocity / 127  # Normalize velocity
+                    }
+                elif msg.type == 'note_off':  # When the note ends
+                    if msg.note in notes:
+                        # Prepare the row: [channel, note, normalized velocity, note_on time, note_off time]
+                        results.append([
+                            notes[msg.note]['channel'],
+                            msg.note,
+                            notes[msg.note]['velocity'],
+                            notes[msg.note]['note_on'],
+                            current_time
+                        ])
+                        del notes[msg.note]  # Remove the note from the active notes
+
+        # Write the results to CSV
+        with open(output_csv, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(['channel', 'note', 'velocity', 'note_on', 'note_off'])
+            for row in results:
+                csvwriter.writerow(row)
+        
+        return True
+    except Exception as e:
+        print(f"Error during MIDI to CSV conversion: {e}")
+        return False
+    
+    # Function to handle the conversion process and create CSV
+def make_csv():
+    if os.path.isfile(path_directory_var):  # Check if it's a valid file
+        midi_file = path_directory_var
+        output_csv = filedialog.asksaveasfilename(
+            title="Save CSV File",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if output_csv:  # If user selected a valid location to save the CSV
+            success = midi_to_csv(midi_file, output_csv)
+            if success:
+                messagebox.showinfo("Success", f"CSV file saved as {output_csv}")
+            else:
+                messagebox.showerror("Error", "An error occurred during conversion.")
+    else:
+        messagebox.showerror("Error", "No valid file selected. Please select a MIDI file.")
 
 
 def validate_numeric_input(new_value):
@@ -13,7 +79,6 @@ def validate_numeric_input(new_value):
         pass
     return False
 
-
 def update_graph():
     try:
         attack_value = float(entries[1].get()) if entries[1].get() else 1.0
@@ -21,44 +86,25 @@ def update_graph():
         sustain_value = float(entries[3].get()) if entries[3].get() else 0.7
         release_value = float(entries[4].get()) if entries[4].get() else 1.0
 
-        # Halve the attack value
         attack_value /= 2
-
-        # Manipulate only the x-value of the attack line
         attack_x_end = attack_value
-
         decay_duration = decay_value / 4
         decay_start_x = attack_x_end
         decay_end_x = decay_start_x + decay_duration
-
         sustain_start_x = decay_end_x
         sustain_end_x = sustain_start_x + 1.5
-
         release_start_x = sustain_end_x
         release_end_x = release_start_x + (release_value / 2)
 
         ax.clear()
-
-        # Attack line (light red)
         ax.plot([0, attack_x_end], [0, 1.0], color="#E57373", linewidth=3, label="Attack Line")
-
-        # Decay line (light orange)
         ax.plot([decay_start_x, decay_end_x], [1.0, sustain_value], color="#FFB74D", linewidth=3, label="Decay Line")
-
-        # Sustain line (light green)
-        ax.plot([sustain_start_x, sustain_end_x], [sustain_value, sustain_value], color="#81C784", linewidth=3,
-                label="Sustain Line")
-
-        # Release line (soft blue)
+        ax.plot([sustain_start_x, sustain_end_x], [sustain_value, sustain_value], color="#81C784", linewidth=3, label="Sustain Line")
         ax.plot([release_start_x, release_end_x], [sustain_value, 0], color="#64B5F6", linewidth=3, label="Release Line")
-
-        # Add circles at key points for aesthetics
         ax.scatter([attack_x_end, decay_end_x, sustain_end_x, release_end_x], 
-                   [1.0, sustain_value, sustain_value, 0],
-                   color='black', zorder=5, s=80, edgecolor="white", linewidth=2, label="Key Points")
-
+                   [1.0, sustain_value, sustain_value, 0], color='black', zorder=5, s=80, edgecolor="white", linewidth=2, label="Key Points")
         ax.set_title("Graph Representation")
-        ax.set_ylabel("Positition")
+        ax.set_ylabel("Position")
         ax.set_xlabel("Time")
         ax.set_xlim(0, 5)
         ax.set_ylim(0, 2)
@@ -67,141 +113,122 @@ def update_graph():
     except Exception as e:
         print(f"Error updating graph: {e}")
 
-
 def adjust_value(index, adjustment):
-    """Adjust the value in the entry by the given amount."""
     try:
         current_value = float(entries[index].get()) if entries[index].get() else 0.0
-        new_value = max(0, round(current_value + adjustment, 1))  # Limit precision to 1 decimal place
+        new_value = max(0, round(current_value + adjustment, 1))
         entries[index].delete(0, tk.END)
-        entries[index].insert(0, f"{new_value:.1f}")  # Format to 1 decimal place
+        entries[index].insert(0, f"{new_value:.1f}")
         update_graph()
     except ValueError:
         pass
 
-
+def add_file():
+    global path_directory_var
+    file_path = filedialog.askopenfilename(
+        title="Select a File",
+        filetypes=[("All Files", "*.*"), ("Text Files", "*.txt"), ("MIDI Files", "*.midi")]
+    )
+    if file_path:
+        path_directory_var = file_path  # Update the global variable
+        print(path_directory_var)
+        path_directory.config(text=f"File Selected: {file_path}", fg="#4CAF50", wraplength=500)
+    else:
+        path_directory.config(text="No File Selected", fg="#F44336")
+        path_directory_var = "No file"
 
 
 root = tk.Tk()
 root.title("MIDI To KeyFrames")
 root.geometry("1100x700")
 
-label = tk.Label(root, text="Hello!!!", font=("Helvetica", 16, "bold"), fg="#4CAF50")
-label.pack(pady=20)
+header_label = tk.Label(root, text="These are the default values", font=("Helvetica", 16, "bold"), fg="#4CAF50")
+header_label.pack(pady=20)
 
-validate_cmd = root.register(validate_numeric_input)
-
-input_frame = tk.Frame(root, bg="#E3F2FD", bd=2, relief="groove")  # Light blue background
+input_frame = tk.Frame(root, bg="#E3F2FD", bd=2, relief="groove")
 input_frame.pack(pady=20, padx=10, fill="x", side="top")
-
-style = ttk.Style()
-style.configure("TEntry", padding=5, relief="flat", font=("Helvetica", 12))
-style.configure("TLabel", font=("Helvetica", 12, "bold"), padding=5, foreground="#607D8B")  # Muted text color
 
 entries = []
 labels = ["FPS", "Attack", "Decay", "Sustain", "Release"]
-
 default_values = [30, 1.0, 1.0, 0.7, 1.0]
-
-# Updated colors to match the graph lines
 colors = ["#4CAF50", "#E57373", "#FFB74D", "#81C784", "#64B5F6"]
 
-for i, (label_text, color, default_value) in enumerate(zip(labels, colors, default_values)):
+validate_cmd = root.register(validate_numeric_input)
+
+for i in range(len(labels)):
     field_frame = tk.Frame(input_frame, bg="#E3F2FD")
     field_frame.pack(side="left", padx=15, pady=10)
-
-    label = ttk.Label(field_frame, text=label_text, foreground=color)
+    label = ttk.Label(field_frame, text=labels[i], foreground=colors[i], background="")
     label.pack()
-
     button_frame = tk.Frame(field_frame, bg="#E3F2FD")
     button_frame.pack(pady=5)
-
-    # Create a darkened grey button with rounded corners
     decrement_button = tk.Button(button_frame, text="−", font=("Helvetica", 14, "bold"),
                                   command=lambda i=i: adjust_value(i, -0.1), width=3, height=1,
                                   bg="#757575", fg="white", relief="solid", borderwidth=2, highlightthickness=0)
     decrement_button.pack(side="left", padx=2)
-
     entry = ttk.Entry(button_frame, validate="key", validatecommand=(validate_cmd, '%P'), justify="center", width=8)
     entry.pack(side="left", padx=2, ipadx=5)
-    entry.insert(0, f"{default_value:.1f}")  # Format to 1 decimal place
+    entry.insert(0, f"{default_values[i]:.1f}")
     entry.bind("<KeyRelease>", lambda event: update_graph())
     entries.append(entry)
-
     increment_button = tk.Button(button_frame, text="+", font=("Helvetica", 14, "bold"),
                                   command=lambda i=i: adjust_value(i, 0.1), width=3, height=1,
                                   bg="#757575", fg="white", relief="solid", borderwidth=2, highlightthickness=0)
     increment_button.pack(side="left", padx=2)
 
+top_frame = tk.Frame(root, bg="#FAFAFA")
+top_frame.pack(pady=5, padx=10, fill="x")
 
+bottom_frame = tk.Frame(root, bg="#FAFAFA")
+bottom_frame.pack(pady=5, padx=10, fill="both", expand=True)
 
+side_frame = tk.Frame(bottom_frame, bg="#E3F2FD", relief="ridge", bd=3)
+side_frame.place(relwidth=0.5, relheight=0.5, relx=0.0)
 
+bottom_bottom_frame = tk.Frame(bottom_frame, bg="#1a1a1a")
+bottom_bottom_frame.place(relwidth=0.5, relheight=0.5, relx=0.0, rely=0.5)
 
-
-
-
-
-
-
-
-
-
-
-def add_file():
-    file_path = filedialog.askopenfilename(
-        title="Select a File",
-        filetypes=[("All Files", "*.*"), ("Text Files", "*.txt"), ("*.midi", "MIDI Files")]
-    )
-    if file_path:
-        label.config(text=f"File Selected: {file_path}", fg="#4CAF50")
-
-
-
-
- 
-
-# Bottom Frame
-bottom_frame = tk.Frame(root, bg="#FAFAFA")  # Soft background color for aesthetics
-bottom_frame.pack(pady=10, padx=10, fill="both", expand=True)
-
-# Left Rectangular Box with updated design
-left_box = tk.Frame(
-    bottom_frame,
-    bg="#E3F2FD",  # Light blue background
-    width=300,
-    height=400,
-    relief="ridge",  # A subtle ridge effect for borders
-    bd=3,  # Border thickness
-)
-left_box.pack(side="left", padx=20, pady=10, fill="y")
-
-# Add content to the updated rectangular box
-content_label = tk.Label(
-    left_box,
-    text="Box Content",
-    bg="#E3F2FD",
-    font=("Helvetica", 14, "bold"),
-    fg="#37474F",  # Muted text color for elegance
-)
-content_label.pack(pady=20)
+left_box = tk.Frame(bottom_frame, bg="#E3F2FD", relief="ridge", bd=3)
+left_box.place(relwidth=0.5, relheight=0.5, relx=0.0, rely=0.0)
 
 example_button = tk.Button(
     left_box,
     text="Select MIDI File",
     font=("Helvetica", 12, "bold"),
-    bg="#64B5F6",  # Vibrant button color
+    bg="#64B5F6",
     fg="white",
-    relief="raised",  # Slightly raised effect for buttons
+    relief="raised",
     borderwidth=2,
+    command=add_file
 )
-example_button.pack(pady=10)
+example_button.pack(pady=10, expand=True)
 
-# Right Graph Area
-graph_frame = tk.Frame(bottom_frame, bg="#FAFAFA")  # Matches the background color for consistency
-graph_frame.pack(side="left", fill="both", expand=True)
+path_directory = tk.Label(
+    left_box,
+    text="No file selected.",
+    font=("Helvetica", 10, "italic"),
+    fg="#9E9E9E",
+    wraplength=500,
+    justify="center"
+)
+path_directory.pack(pady=5, expand=True)
 
-# Matplotlib Graph
-fig, ax = plt.subplots(figsize=(6, 4))  # Adjusted aspect ratio for a more balanced layout
+new_button = tk.Button(
+    bottom_bottom_frame,
+    text="New Button",
+    font=("Helvetica", 12, "bold"),
+    bg="#FF7043",
+    fg="white",
+    relief="raised",
+    borderwidth=2,
+    command=make_csv
+)
+new_button.pack(pady=10, expand=True)
+
+graph_frame = tk.Frame(bottom_frame, bg="#FAFAFA")
+graph_frame.place(relwidth=0.5, relheight=1.0, relx=0.5)
+
+fig, ax = plt.subplots(figsize=(6, 4))
 canvas = FigureCanvasTkAgg(fig, master=graph_frame)
 canvas_widget = canvas.get_tk_widget()
 canvas_widget.pack(fill="both", expand=True)
