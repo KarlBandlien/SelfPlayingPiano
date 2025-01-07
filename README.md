@@ -11,6 +11,7 @@ Custom 3D Piano Model and Scenery:
 
 The entire piano and environment, from keys to background, were modeled by me in Blender, giving me full control over the aesthetics of the scene.
 I spent considerable time perfecting the textures, lighting, and camera angles to create an immersive experience.
+
 MIDI to Python Conversion Script:
 
 I developed a script that converts any MIDI file into a Python file, which then drives the animation of the piano keys and marbles.
